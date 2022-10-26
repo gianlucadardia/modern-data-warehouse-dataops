@@ -123,7 +123,7 @@
 					},
 					{
 						"name": "Set infilefolder",
-						"description": "Added description on variable set activities",
+						"description": "Added description on set variable activities",
 						"type": "SetVariable",
 						"dependsOn": [],
 						"userProperties": [],
