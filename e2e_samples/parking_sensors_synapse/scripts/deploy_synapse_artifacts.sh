@@ -28,6 +28,9 @@ set -o errexit
 set -o pipefail
 set -o nounset
 # set -o xtrace # For debugging
+LOGFILE="/home/gdardia/deploy.log"
+
+echo "$0 - Starting....." >> $LOGFILE
 
 ###################
 # REQUIRED ENV VARIABLES:
@@ -60,7 +63,7 @@ synapse_ws_location=$(az group show \
 # Function responsible to perform the 4 steps needed to upload a single package to the synapse workspace area
 uploadSynapsePackagesToWorkspace(){
     declare name=$1
-    echo "Uploading Library Wheel Package to Workspace: $name"
+    echo "$0 - Uploading Library Wheel Package to Workspace: $name" >> $LOGFILE
 
     #az synapse workspace wait --resource-group "${RESOURCE_GROUP_NAME}" --workspace-name "${SYNAPSE_WORKSPACE_NAME}" --created
     # Step 1: Get bearer token for the Data plane    
@@ -70,8 +73,8 @@ uploadSynapsePackagesToWorkspace(){
     synapseLibraryUri="${synapseLibraryBaseUri}/${name}?api-version=${dataPlaneApiVersion}"
 
     if [[ -n $(az rest --method get --headers "Authorization=Bearer ${token}" 'Content-Type=application/json;charset=utf-8' --url "${synapseLibraryBaseUri}?api-version=${dataPlaneApiVersion}" --query "value[?name == '${name}']" -o tsv) ]]; then
-        echo "Library exists: ${name}"
-        echo "Skipping creation"
+        echo "Library exists: ${name}" >> $LOGFILE
+        echo "Skipping creation" >> $LOGFILE
         return 0
     fi
 
@@ -95,7 +98,7 @@ uploadSynapsePackagesToWorkspace(){
 uploadSynapseArtifactsToSparkPool(){
     declare requirementList=$1
     declare customLibraryList=$2
-    echo "Uploading Synapse Artifacts to Spark Pool: ${BIG_DATAPOOL_NAME}"
+    echo "Uploading Synapse Artifacts to Spark Pool: ${BIG_DATAPOOL_NAME}" >> $LOGFILE
 
     json_body="{
         \"location\": \"${synapse_ws_location}\",
@@ -145,12 +148,12 @@ uploadSynapseArtifactsToSparkPool(){
 
 createLinkedService () {
     declare name=$1
-    echo "Creating Synapse LinkedService: $name"
+    echo "Creating Synapse LinkedService: $name" >> $LOGFILE
     az synapse linked-service create --file @./synapse/workspace/linkedService/"${name}".json --name="${name}" --workspace-name "${SYNAPSE_WORKSPACE_NAME}"
 }
 createDataset () {
     declare name=$1
-    echo "Creating Synapse Dataset: $name"
+    echo "Creating Synapse Dataset: $name" >> $LOGFILE
     az synapse dataset create --file @./synapse/workspace/dataset/"${name}".json --name="${name}" --workspace-name "${SYNAPSE_WORKSPACE_NAME}"
 }
 createNotebook() {
@@ -158,12 +161,12 @@ createNotebook() {
     # As of 26 Oct 2021, there is an outstanding bug regarding az synapse notebook create command which prevents it from deploy notebook .JSON files
     # Thus, we are resorting to deploying notebooks in .ipynb format.
     # See here: https://github.com/Azure/azure-cli/issues/20037
-    echo "Creating Synapse Notebook: $name"
+    echo "Creating Synapse Notebook: $name" >> $LOGFILE
     az synapse notebook create --file @./synapse/notebook/"${name}".ipynb --name="${name}" --workspace-name "${SYNAPSE_WORKSPACE_NAME}" --spark-pool-name "${BIG_DATAPOOL_NAME}"
 }
 createPipeline () {
     declare name=$1
-    echo "Creating Synapse Pipeline: $name"
+    echo "Creating Synapse Pipeline: $name" >> $LOGFILE
 
     # Replace dedicated sql pool name
     tmp=$(mktemp)
@@ -173,7 +176,7 @@ createPipeline () {
 }
 createTrigger () {
     declare name=$1
-    echo "Creating Synapse Trigger: $name"
+    echo "Creating Synapse Trigger: $name" >> $LOGFILE
     az synapse trigger create --file @./synapse/workspace/trigger/"${name}".json --name="${name}" --workspace-name "${SYNAPSE_WORKSPACE_NAME}"
 }
 
@@ -189,14 +192,14 @@ getProvisioningState(){
 }
 
 UpdateExternalTableScript () {
-    echo "Replace SQL script with: $AZURE_STORAGE_ACCOUNT"
+    echo "Replace SQL script with: $AZURE_STORAGE_ACCOUNT" >> $LOGFILE
     sed "s/<data storage account>/$AZURE_STORAGE_ACCOUNT/" \
     ./synapse/workspace/scripts/create_external_table_template.sql \
     > ./synapse/workspace/scripts/create_external_table.sql
 }
 
 UploadSql () {
-    echo "Try to upload sql script"
+    echo "Try to upload sql script" >> $LOGFILE
     declare name=$1
     echo "Uploading sql script to Workspace: $name"
 

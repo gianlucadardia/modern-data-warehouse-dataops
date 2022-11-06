@@ -76,7 +76,8 @@ function retry {
 # Usage: wait_service_principal_creation <SERVICE_PRINCIPAL_APP_ID>
 wait_service_principal_creation () {
     local sp_app_id=$1
-    until az ad sp list --show-mine --query "[].appId" -o tsv | grep "$sp_app_id"
+    #until az ad sp list --show-mine --query "[].appId" -o tsv | grep "$sp_app_id"
+    until az ad sp list --query "[].appId" -o tsv --all | grep "$sp_app_id"
     do
         echo "waiting for service principal to finish creating..."
         sleep 10

@@ -21,36 +21,62 @@ set -o pipefail
 set -o nounset
 # set -o xtrace # For debugging
 
+. /home/gdardia/.bash_profile
+. /home/gdardia/.bashrc
+
 . ./scripts/common.sh
 . ./scripts/verify_prerequisites.sh
 . ./scripts/init_environment.sh
 
+LOGFILE="/home/gdardia/deploy.log"
 
-project=mdwdops # CONSTANT - this is prefixes to all resources of the Parking Sensor sample
-github_repo_url="https://github.com/$GITHUB_REPO"
+#project=mdwdops # CONSTANT - this is prefixes to all resources of the Parking Sensor sample
+#project=dataops # CONSTANT - this is prefixes to all resources of the Parking Sensor sample
+#github_repo_url="https://github.com/$GITHUB_REPO"
 
 
 ###################
 # DEPLOY ALL FOR EACH ENVIRONMENT
+echo "$0 - Starting deploy...." > $LOGFILE
+az devops configure --defaults organization=https://dev.azure.com/gdacsaorg/ project=synapsedataops
 
 for env_name in dev stg prod; do  # dev stg prod
-    PROJECT=$project \
+    PROJECT=$PROJECT \
     DEPLOYMENT_ID=$DEPLOYMENT_ID \
-    ENV_NAME=$env_name \
+    export ENV_NAME=$env_name \
     AZURE_LOCATION=$AZURE_LOCATION \
     AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID \
-    bash -c "./scripts/deploy_infrastructure.sh"  # inclues AzDevOps Azure Service Connections and Variable Groups
-done
 
+
+    echo "---------------------------------" >> $LOGFILE
+    echo "Project name: $PROJECT" >> $LOGFILE
+    echo "Deployment id: $DEPLOYMENT_ID" >> $LOGFILE
+    echo "Environment name: $env_name" >> $LOGFILE
+    echo "Azure location: $AZURE_LOCATION" >> $LOGFILE
+    echo "---------------------------------" >> $LOGFILE
+
+    echo "$0 - STARTING script deploy_infrastrucutre.sh" >> $LOGFILE
+
+    bash -c "./scripts/deploy_infrastructure.sh"  # inclues AzDevOps Azure Service Connections and Variable Groups
+
+    echo "$0 - ENDING script deploy_infrastrucutre.sh" >> $LOGFILE
+done
 
 ###################
 # Deploy AzDevOps Pipelines
+echo "$0 # Deploy AzDevOps Pipelines" >> $LOGFILE
 
 # Create AzDo Github Service Connection -- required only once for the entire deployment
-PROJECT=$project \
-GITHUB_PAT_TOKEN=$GITHUB_PAT_TOKEN \
-GITHUB_REPO_URL=$github_repo_url \
+#PROJECT=$project \
+
+#GITHUB_PAT_TOKEN=$GITHUB_PAT_TOKEN \
+#GITHUB_REPO_URL=$github_repo_url \
+
+echo "$0 - STARTING SCRIPT ./scripts/deploy_azdo_service_connections_github.sh " >> $LOGFILE
+
     bash -c "./scripts/deploy_azdo_service_connections_github.sh"
+
+echo "$0 - ENDING SCRIPT ./scripts/deploy_azdo_service_connections_github.sh " >> $LOGFILE
 
 # This replaces 'your_github_handle/your_repo' to deployer's github project
 # Adding "uname" check so that the command works on Mac.
@@ -64,11 +90,18 @@ fi
 declare DEV_"$(grep -e '^SYNAPSE_WORKSPACE_NAME' .env.dev | tail -1 | xargs)"
 
 # Deploy all pipelines
-PROJECT=$project \
-GITHUB_REPO_URL=$github_repo_url \
-AZDO_PIPELINES_BRANCH_NAME=$AZDO_PIPELINES_BRANCH_NAME \
+#PROJECT=$project \
+#PROJECT=$PROJECT \
+#GITHUB_REPO_URL=$github_repo_url \
+#AZDO_PIPELINES_BRANCH_NAME=$AZDO_PIPELINES_BRANCH_NAME \
+
 DEV_SYNAPSE_WORKSPACE_NAME=$DEV_SYNAPSE_WORKSPACE_NAME \
+
+echo "$0 - STARTING SCRIPT ./scripts/deploy_azdo_pipelines.sh.sh " >> $LOGFILE
+
     bash -c "./scripts/deploy_azdo_pipelines.sh"
+
+echo "$0 - ENDING SCRIPT ./scripts/deploy_azdo_pipelines.sh.sh " >> $LOGFILE
 
 ####
 

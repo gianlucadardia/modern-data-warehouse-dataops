@@ -41,18 +41,18 @@ set -o nounset
 # AZURE_LOCATION
 # AZURE_SUBSCRIPTION_ID
 # SYNAPSE_SQL_PASSWORD
-
+LOGFILE="/home/gdardia/deploy.log"
 
 #####################
 # DEPLOY ARM TEMPLATE
 
 # Set account to where ARM template will be deployed to
-echo "Deploying to Subscription: $AZURE_SUBSCRIPTION_ID"
+echo "$0 - Deploying to Subscription: $AZURE_SUBSCRIPTION_ID" >> $LOGFILE	
 az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 
 # Create resource group
 resource_group_name="$PROJECT-$DEPLOYMENT_ID-$ENV_NAME-rg"
-echo "Creating resource group: $resource_group_name"
+echo "$0 - Creating resource group: $resource_group_name" >> $LOGFILE
 az group create --name "$resource_group_name" --location "$AZURE_LOCATION" --tags Environment="$ENV_NAME"
 
 # By default, set all KeyVault permission to deployer
@@ -62,7 +62,7 @@ kv_owner_object_id=$(az ad signed-in-user show --output json | jq -r '.id')
 
 # Validate arm template
 
-echo "Validating deployment"
+echo "$0 - Validating deployment" >> $LOGFILE
 arm_output=$(az deployment group validate \
     --resource-group "$resource_group_name" \
     --template-file "./infrastructure/main.bicep" \
@@ -70,14 +70,19 @@ arm_output=$(az deployment group validate \
     --parameters project="${PROJECT}" keyvault_owner_object_id="${kv_owner_object_id}" deployment_id="${DEPLOYMENT_ID}" synapse_sqlpool_admin_password="${SYNAPSE_SQL_PASSWORD}" \
     --output json)
 
+echo "$0 - Validating deployment..... DONE" >> $LOGFILE
+
+
 # Deploy arm template
-echo "Deploying resources into $resource_group_name"
+echo "$0 - Deploying resources into $resource_group_name" >> $LOGFILE
 arm_output=$(az deployment group create \
     --resource-group "$resource_group_name" \
     --template-file "./infrastructure/main.bicep" \
     --parameters @"./infrastructure/main.parameters.${ENV_NAME}.json" \
     --parameters project="${PROJECT}" deployment_id="${DEPLOYMENT_ID}" keyvault_owner_object_id="${kv_owner_object_id}" synapse_sqlpool_admin_password="${SYNAPSE_SQL_PASSWORD}" \
     --output json)
+
+echo "$0 - Deploying resources into $resource_group_name....... DONE" >> $LOGFILE
 
 if [[ -z $arm_output ]]; then
     echo >&2 "ARM deployment failed."
@@ -87,8 +92,9 @@ fi
 
 ########################
 # RETRIEVE KEYVAULT INFORMATION
+echo "$0 - # RETRIEVE KEYVAULT INFORMATION" >> $LOGFILE
 
-echo "Retrieving KeyVault information from the deployment."
+echo "$0 - Retrieving KeyVault information from the deployment." >> $LOGFILE
 
 kv_name=$(echo "$arm_output" | jq -r '.properties.outputs.keyvault_name.value')
 kv_dns_name=https://${kv_name}.vault.azure.net/
@@ -101,6 +107,7 @@ az keyvault secret set --vault-name "$kv_name" --name "subscriptionId" --value "
 
 #########################
 # CREATE AND CONFIGURE SERVICE PRINCIPAL FOR ADLA GEN2
+echo "$0 - # CREATE AND CONFIGURE SERVICE PRINCIPAL FOR ADLA GEN2" >> $LOGFILE
 
 # Retrive account and key
 azure_storage_account=$(echo "$arm_output" | jq -r '.properties.outputs.storage_account_name.value')
@@ -112,10 +119,10 @@ azure_storage_key=$(az storage account keys list \
 
 # Add file system storage account
 storage_file_system=datalake
-echo "Creating ADLS Gen2 File system: $storage_file_system"
+echo "$0 - Creating ADLS Gen2 File system: $storage_file_system" >> $LOGFILE
 az storage container create --name $storage_file_system --account-name "$azure_storage_account" --account-key "$azure_storage_key"
 
-echo "Creating folders within the file system."
+echo "$0 - Creating folders within the file system." >> $LOGFILE
 # Create folders for databricks libs
 az storage fs directory create -n '/sys/databricks/libs' -f $storage_file_system --account-name "$azure_storage_account" --account-key "$azure_storage_key"
 # Create folders for SQL external tables
@@ -124,7 +131,7 @@ az storage fs directory create -n '/data/dw/dim_st_marker' -f $storage_file_syst
 az storage fs directory create -n '/data/dw/dim_parking_bay' -f $storage_file_system --account-name "$azure_storage_account" --account-key "$azure_storage_key"
 az storage fs directory create -n '/data/dw/dim_location' -f $storage_file_system --account-name "$azure_storage_account" --account-key "$azure_storage_key"
 
-echo "Uploading seed data to data/seed"
+echo "$0 - Uploading seed data to data/seed" >> $LOGFILE
 az storage blob upload --container-name $storage_file_system --account-name "$azure_storage_account" --account-key "$azure_storage_key" \
     --file data/seed/dim_date.csv --name "data/seed/dim_date/dim_date.csv" --overwrite
 az storage blob upload --container-name $storage_file_system --account-name "$azure_storage_account" --account-key "$azure_storage_key" \
@@ -138,8 +145,9 @@ az keyvault secret set --vault-name "$kv_name" --name "datalakeurl" --value "htt
 
 ####################
 # APPLICATION INSIGHTS
+echo "$0 - # APPLICATION INSIGHTS" >> $LOGFILE
 
-echo "Retrieving ApplicationInsights information from the deployment."
+echo "$0 - Retrieving ApplicationInsights information from the deployment." >> $LOGFILE
 appinsights_name=$(echo "$arm_output" | jq -r '.properties.outputs.appinsights_name.value')
 appinsights_key=$(az monitor app-insights component show \
     --app "$appinsights_name" \
@@ -153,8 +161,9 @@ az keyvault secret set --vault-name "$kv_name" --name "applicationInsightsKey" -
 
 ####################
 # LOG ANALYTICS 
+echo "$0 - # LOG ANALYTICS " >> $LOGFILE
 
-echo "Retrieving Log Analytics information from the deployment."
+echo "$0 - Retrieving Log Analytics information from the deployment." >> $LOGFILE
 loganalytics_name=$(echo "$arm_output" | jq -r '.properties.outputs.loganalytics_name.value')
 loganalytics_id=$(az monitor log-analytics workspace show \
     --workspace-name "$loganalytics_name" \
@@ -174,8 +183,9 @@ az keyvault secret set --vault-name "$kv_name" --name "logAnalyticsKey" --value 
 
 ####################
 # SYNAPSE ANALYTICS
+echo "$0 - # SYNAPSE ANALYTICS" >> $LOGFILE
 
-echo "Retrieving Synapse Analytics information from the deployment."
+echo "$0 - Retrieving Synapse Analytics information from the deployment." >> $LOGFILE
 synapseworkspace_name=$(echo "$arm_output" | jq -r '.properties.outputs.synapseworskspace_name.value')
 synapse_dev_endpoint=$(az synapse workspace show \
     --name "$synapseworkspace_name" \
@@ -193,6 +203,7 @@ synapse_sqlpool_admin_username=$(echo "$arm_output" | jq -r '.properties.outputs
 synapse_dedicated_sqlpool_db_name=$(echo "$arm_output" | jq -r '.properties.outputs.synapse_sql_pool_output.value.synapse_pool_name')
 
 # Store in Keyvault
+echo "$0 - # Store in Keyvault" >> $LOGFILE
 az keyvault secret set --vault-name "$kv_name" --name "synapseWorkspaceName" --value "$synapseworkspace_name"
 az keyvault secret set --vault-name "$kv_name" --name "synapseDevEndpoint" --value "$synapse_dev_endpoint"
 az keyvault secret set --vault-name "$kv_name" --name "synapseSparkPoolName" --value "$synapse_sparkpool_name"
@@ -202,18 +213,22 @@ az keyvault secret set --vault-name "$kv_name" --name "synapseSQLPoolAdminPasswo
 az keyvault secret set --vault-name "$kv_name" --name "synapseDedicatedSQLPoolDBName" --value "$synapse_dedicated_sqlpool_db_name"
 
 # Deploy Synapse artifacts
-AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID \
-RESOURCE_GROUP_NAME=$resource_group_name \
-SYNAPSE_WORKSPACE_NAME=$synapseworkspace_name \
-SYNAPSE_DEV_ENDPOINT=$synapse_dev_endpoint \
-BIG_DATAPOOL_NAME=$synapse_sparkpool_name \
-SQL_POOL_NAME=$synapse_sqlpool_name \
-LOG_ANALYTICS_WS_ID=$loganalytics_id \
-LOG_ANALYTICS_WS_KEY=$loganalytics_key \
-KEYVAULT_NAME=$kv_name \
-AZURE_STORAGE_ACCOUNT=$azure_storage_account \
+echo "$0 - # Deploy Synapse artifacts" >> $LOGFILE
+export AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID
+export RESOURCE_GROUP_NAME=$resource_group_name
+export SYNAPSE_WORKSPACE_NAME=$synapseworkspace_name
+export SYNAPSE_DEV_ENDPOINT=$synapse_dev_endpoint
+export BIG_DATAPOOL_NAME=$synapse_sparkpool_name
+export SQL_POOL_NAME=$synapse_sqlpool_name
+export LOG_ANALYTICS_WS_ID=$loganalytics_id
+export LOG_ANALYTICS_WS_KEY=$loganalytics_key
+export KEYVAULT_NAME=$kv_name
+export AZURE_STORAGE_ACCOUNT=$azure_storage_account
+echo "$0 - STARTING SCRIPT scripts/deploy_synapse_artifacts.sh " >> $LOGFILE
+
     bash -c "./scripts/deploy_synapse_artifacts.sh"
 
+echo "$0 - STARTING SCRIPT scripts/deploy_synapse_artifacts.sh ....... DONE" >> $LOGFILE
 
 # SERVICE PRINCIPAL IN SYNAPSE INTEGRATION TESTS
 # Synapse SP for integration tests
@@ -242,6 +257,7 @@ assign_synapse_role_if_not_exists "$synapseworkspace_name" "Synapse SQL Administ
 
 ####################
 # AZDO Azure Service Connection and Variables Groups
+echo "$0 - # AZDO Azure Service Connection and Variables Groups" >> $LOGFILE
 
 # AzDO Azure Service Connections
 PROJECT=$PROJECT \
@@ -249,37 +265,45 @@ ENV_NAME=$ENV_NAME \
 RESOURCE_GROUP_NAME=$resource_group_name \
 DEPLOYMENT_ID=$DEPLOYMENT_ID \
 SYNAPSE_WORKSPACE_NAME=$synapseworkspace_name \
+echo "$0 - STARTING scripts/deploy_azdo_service_connection_azure.sh" >> $LOGFILE
+
     bash -c "./scripts/deploy_azdo_service_connections_azure.sh"
 
+echo "$0 - STARTING scripts/deploy_azdo_service_connection_azure.sh..... DONE" >> $LOGFILE
 # AzDO Variable Groups
 
-SP_SYNAPSE_ID=$sp_synapse_id \
-SP_SYNAPSE_PASS=$sp_synapse_pass \
-SP_SYNAPSE_TENANT=$sp_synapse_tenant \
-PROJECT=$PROJECT \
-ENV_NAME=$ENV_NAME \
-AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID \
-RESOURCE_GROUP_NAME=$resource_group_name \
-AZURE_LOCATION=$AZURE_LOCATION \
-KV_URL=$kv_dns_name \
-AZURE_STORAGE_KEY=$azure_storage_key \
-AZURE_STORAGE_ACCOUNT=$azure_storage_account \
-SYNAPSE_WORKSPACE_NAME=$synapseworkspace_name \
-BIG_DATAPOOL_NAME=$synapse_sparkpool_name \
-SYNAPSE_SQLPOOL_SERVER=$synapse_sqlpool_server \
-SYNAPSE_SQLPOOL_ADMIN_USERNAME=$synapse_sqlpool_admin_username \
-SYNAPSE_SQLPOOL_ADMIN_PASSWORD=$SYNAPSE_SQL_PASSWORD \
-SYNAPSE_DEDICATED_SQLPOOL_DATABASE_NAME=$synapse_dedicated_sqlpool_db_name \
-LOG_ANALYTICS_WS_ID=$loganalytics_id \
-LOG_ANALYTICS_WS_KEY=$loganalytics_key \
+export SP_SYNAPSE_ID=$sp_synapse_id 
+export SP_SYNAPSE_PASS=$sp_synapse_pass 
+export SP_SYNAPSE_TENANT=$sp_synapse_tenant
+export PROJECT=$PROJECT
+export ENV_NAME=$ENV_NAME
+export AZURE_SUBSCRIPTION_ID=$AZURE_SUBSCRIPTION_ID 
+export RESOURCE_GROUP_NAME=$resource_group_name 
+export AZURE_LOCATION=$AZURE_LOCATION 
+export KV_URL=$kv_dns_name 
+export AZURE_STORAGE_KEY=$azure_storage_key 
+export AZURE_STORAGE_ACCOUNT=$azure_storage_account 
+export SYNAPSE_WORKSPACE_NAME=$synapseworkspace_name 
+export BIG_DATAPOOL_NAME=$synapse_sparkpool_name 
+export SYNAPSE_SQLPOOL_SERVER=$synapse_sqlpool_server 
+export SYNAPSE_SQLPOOL_ADMIN_USERNAME=$synapse_sqlpool_admin_username 
+export SYNAPSE_SQLPOOL_ADMIN_PASSWORD=$SYNAPSE_SQL_PASSWORD 
+export SYNAPSE_DEDICATED_SQLPOOL_DATABASE_NAME=$synapse_dedicated_sqlpool_db_name 
+export LOG_ANALYTICS_WS_ID=$loganalytics_id 
+export LOG_ANALYTICS_WS_KEY=$loganalytics_key 
+
+echo "$0 - STARTING scripts deploy_azdo_variables.sh" >> $LOGFILE
+
     bash -c "./scripts/deploy_azdo_variables.sh"
 
+echo "$0 - STARTING scripts deploy_azdo_variables.sh.......DONE" >> $LOGFILE
 
 ####################
 # BUILD ENV FILE FROM CONFIG INFORMATION
+echo "$0 - BUILD ENV FILE FROM CONFIG INFORMATION" >> $LOGFILE
 
 env_file=".env.${ENV_NAME}"
-echo "Appending configuration to .env file."
+echo "$0 - Appending configuration to .env file."
 cat << EOF >> "$env_file"
 
 # ------ Configuration from deployment on ${TIMESTAMP} -----------
