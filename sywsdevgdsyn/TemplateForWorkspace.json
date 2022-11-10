@@ -1,0 +1,1888 @@
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+	"contentVersion": "1.0.0.0",
+	"parameters": {
+		"workspaceName": {
+			"type": "string",
+			"metadata": "Workspace name",
+			"defaultValue": "sywsdevgdsyn"
+		},
+		"sywsdevgdsyn-WorkspaceDefaultSqlServer_connectionString": {
+			"type": "secureString",
+			"metadata": "Secure string for 'connectionString' of 'sywsdevgdsyn-WorkspaceDefaultSqlServer'"
+		},
+		"Ls_AdlsGen2_01_properties_typeProperties_url": {
+			"type": "object",
+			"defaultValue": {
+				"type": "AzureKeyVaultSecret",
+				"store": {
+					"referenceName": "Ls_KeyVault_01",
+					"type": "LinkedServiceReference"
+				},
+				"secretName": "datalakeurl"
+			}
+		},
+		"Ls_KeyVault_01_properties_typeProperties_baseUrl": {
+			"type": "string",
+			"defaultValue": "https://dataops-kv-dev-gdsyn.vault.azure.net/"
+		},
+		"Ls_Rest_MelParkSensors_01_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://data.melbourne.vic.gov.au/resource/"
+		},
+		"sywsdevgdsyn-WorkspaceDefaultStorage_properties_typeProperties_url": {
+			"type": "string",
+			"defaultValue": "https://dataopsst2devgdsyn.dfs.core.windows.net"
+		}
+	},
+	"variables": {
+		"workspaceId": "[concat('Microsoft.Synapse/workspaces/', parameters('workspaceName'))]"
+	},
+	"resources": [
+		{
+			"name": "[concat(parameters('workspaceName'), '/P_Ingest_MelbParkingData')]",
+			"type": "Microsoft.Synapse/workspaces/pipelines",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"activities": [
+					{
+						"name": "Set infilefolder",
+						"type": "SetVariable",
+						"dependsOn": [],
+						"userProperties": [],
+						"typeProperties": {
+							"variableName": "infilefolder",
+							"value": {
+								"value": "@utcnow('yyyy_MM_dd_hh_mm_ss')",
+								"type": "Expression"
+							}
+						}
+					},
+					{
+						"name": "DownloadSensorData",
+						"type": "Copy",
+						"dependsOn": [
+							{
+								"activity": "Set infilefolder",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "RestSource",
+								"httpRequestTimeout": "00:01:40",
+								"requestInterval": "00.00:00:00.010",
+								"requestMethod": "GET"
+							},
+							"sink": {
+								"type": "JsonSink",
+								"storeSettings": {
+									"type": "AzureBlobFSWriteSettings"
+								},
+								"formatSettings": {
+									"type": "JsonWriteSettings"
+								}
+							},
+							"enableStaging": false
+						},
+						"inputs": [
+							{
+								"referenceName": "Ds_REST_MelbParkingData",
+								"type": "DatasetReference",
+								"parameters": {
+									"relativeurl": "dtpv-d4pf.json"
+								}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "Ds_AdlsGen2_MelbParkingData",
+								"type": "DatasetReference",
+								"parameters": {
+									"infilefolder": "@variables('infilefolder')",
+									"infilename": "MelbParkingSensorData.json",
+									"container": "datalake/data/lnd"
+								}
+							}
+						]
+					},
+					{
+						"name": "DownloadBayData",
+						"type": "Copy",
+						"dependsOn": [
+							{
+								"activity": "Set infilefolder",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"source": {
+								"type": "RestSource",
+								"httpRequestTimeout": "00:01:40",
+								"requestInterval": "00.00:00:00.010",
+								"requestMethod": "GET"
+							},
+							"sink": {
+								"type": "JsonSink",
+								"storeSettings": {
+									"type": "AzureBlobFSWriteSettings"
+								},
+								"formatSettings": {
+									"type": "JsonWriteSettings"
+								}
+							},
+							"enableStaging": false
+						},
+						"inputs": [
+							{
+								"referenceName": "Ds_REST_MelbParkingData",
+								"type": "DatasetReference",
+								"parameters": {
+									"relativeurl": "wuf8-susg.json"
+								}
+							}
+						],
+						"outputs": [
+							{
+								"referenceName": "Ds_AdlsGen2_MelbParkingData",
+								"type": "DatasetReference",
+								"parameters": {
+									"infilefolder": "@variables('infilefolder')",
+									"infilename": "MelbParkingBayData.json",
+									"container": "datalake/data/lnd"
+								}
+							}
+						]
+					},
+					{
+						"name": "StandardizeData",
+						"type": "SynapseNotebook",
+						"dependsOn": [
+							{
+								"activity": "DownloadSensorData",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							},
+							{
+								"activity": "DownloadBayData",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebook": {
+								"referenceName": "02_standardize",
+								"type": "NotebookReference"
+							},
+							"parameters": {
+								"infilefolder": {
+									"value": {
+										"value": "@variables('infilefolder')",
+										"type": "Expression"
+									},
+									"type": "string"
+								},
+								"loadid": {
+									"value": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"type": "string"
+								},
+								"pipelinename": {
+									"value": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"type": "string"
+								},
+								"keyvaultlsname": {
+									"value": "Ls_KeyVault_01",
+									"type": "string"
+								},
+								"adls2lsname": {
+									"value": "Ls_AdlsGen2_01",
+									"type": "string"
+								}
+							},
+							"conf": {
+								"spark.dynamicAllocation.enabled": null,
+								"spark.dynamicAllocation.minExecutors": null,
+								"spark.dynamicAllocation.maxExecutors": null
+							},
+							"numExecutors": null
+						}
+					},
+					{
+						"name": "TransformData",
+						"type": "SynapseNotebook",
+						"dependsOn": [
+							{
+								"activity": "StandardizeData",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"typeProperties": {
+							"notebook": {
+								"referenceName": "03_transform",
+								"type": "NotebookReference"
+							},
+							"parameters": {
+								"loadid": {
+									"value": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"type": "string"
+								},
+								"pipelinename": {
+									"value": {
+										"value": "@pipeline().Pipeline",
+										"type": "Expression"
+									},
+									"type": "string"
+								},
+								"keyvaultlsname": {
+									"value": "Ls_KeyVault_01",
+									"type": "string"
+								}
+							},
+							"conf": {
+								"spark.dynamicAllocation.enabled": null,
+								"spark.dynamicAllocation.minExecutors": null,
+								"spark.dynamicAllocation.maxExecutors": null
+							},
+							"numExecutors": null
+						}
+					},
+					{
+						"name": "Load SQL dedicated pool",
+						"type": "SqlPoolStoredProcedure",
+						"dependsOn": [
+							{
+								"activity": "TransformData",
+								"dependencyConditions": [
+									"Succeeded"
+								]
+							}
+						],
+						"policy": {
+							"timeout": "7.00:00:00",
+							"retry": 0,
+							"retryIntervalInSeconds": 30,
+							"secureOutput": false,
+							"secureInput": false
+						},
+						"userProperties": [],
+						"sqlPool": {
+							"referenceName": "syndpdevgdsyn",
+							"type": "SqlPoolReference"
+						},
+						"typeProperties": {
+							"storedProcedureName": "dbo.load_dw",
+							"storedProcedureParameters": {
+								"load_id": {
+									"value": {
+										"value": "@pipeline().RunId",
+										"type": "Expression"
+									},
+									"type": "String"
+								}
+							}
+						}
+					}
+				],
+				"policy": {
+					"elapsedTimeMetric": {},
+					"cancelAfter": {}
+				},
+				"variables": {
+					"infilefolder": {
+						"type": "String",
+						"defaultValue": "Ind"
+					}
+				},
+				"annotations": [],
+				"lastPublishTime": "2022-11-06T18:19:27Z"
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/datasets/Ds_REST_MelbParkingData')]",
+				"[concat(variables('workspaceId'), '/datasets/Ds_AdlsGen2_MelbParkingData')]",
+				"[concat(variables('workspaceId'), '/notebooks/02_standardize')]",
+				"[concat(variables('workspaceId'), '/notebooks/03_transform')]",
+				"[concat(variables('workspaceId'), '/sqlPools/syndpdevgdsyn')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/Ds_AdlsGen2_MelbParkingData')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "Ls_AdlsGen2_01",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"infilefolder": {
+						"type": "string"
+					},
+					"infilename": {
+						"type": "string"
+					},
+					"container": {
+						"type": "string",
+						"defaultValue": "datalake/data/lnd"
+					}
+				},
+				"annotations": [],
+				"type": "Json",
+				"typeProperties": {
+					"location": {
+						"type": "AzureBlobFSLocation",
+						"folderPath": {
+							"value": "@dataset().infilename",
+							"type": "Expression"
+						},
+						"fileSystem": {
+							"value": "@concat(dataset().container, '/', dataset().infilefolder)",
+							"type": "Expression"
+						}
+					}
+				},
+				"schema": {}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/Ls_AdlsGen2_01')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/Ds_REST_MelbParkingData')]",
+			"type": "Microsoft.Synapse/workspaces/datasets",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"linkedServiceName": {
+					"referenceName": "Ls_Rest_MelParkSensors_01",
+					"type": "LinkedServiceReference"
+				},
+				"parameters": {
+					"relativeurl": {
+						"type": "string"
+					}
+				},
+				"annotations": [],
+				"type": "RestResource",
+				"typeProperties": {
+					"relativeUrl": {
+						"value": "@dataset().relativeurl",
+						"type": "Expression"
+					}
+				},
+				"schema": []
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/Ls_Rest_MelParkSensors_01')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/Ls_AdlsGen2_01')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "AzureBlobFS",
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				},
+				"annotations": [],
+				"typeProperties": {
+					"url": "[parameters('Ls_AdlsGen2_01_properties_typeProperties_url')]"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/linkedServices/Ls_KeyVault_01')]",
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/Ls_KeyVault_01')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureKeyVault",
+				"typeProperties": {
+					"baseUrl": "[parameters('Ls_KeyVault_01_properties_typeProperties_baseUrl')]"
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/Ls_Rest_MelParkSensors_01')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "RestService",
+				"typeProperties": {
+					"url": "[parameters('Ls_Rest_MelParkSensors_01_properties_typeProperties_url')]",
+					"enableServerCertificateValidation": true,
+					"authenticationType": "Anonymous"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/sywsdevgdsyn-WorkspaceDefaultSqlServer')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"parameters": {
+					"DBName": {
+						"type": "String"
+					}
+				},
+				"annotations": [],
+				"type": "AzureSqlDW",
+				"typeProperties": {
+					"connectionString": "[parameters('sywsdevgdsyn-WorkspaceDefaultSqlServer_connectionString')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/sywsdevgdsyn-WorkspaceDefaultStorage')]",
+			"type": "Microsoft.Synapse/workspaces/linkedServices",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"type": "AzureBlobFS",
+				"typeProperties": {
+					"url": "[parameters('sywsdevgdsyn-WorkspaceDefaultStorage_properties_typeProperties_url')]"
+				},
+				"connectVia": {
+					"referenceName": "AutoResolveIntegrationRuntime",
+					"type": "IntegrationRuntimeReference"
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/integrationRuntimes/AutoResolveIntegrationRuntime')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/T_Sched')]",
+			"type": "Microsoft.Synapse/workspaces/triggers",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"annotations": [],
+				"runtimeState": "Started",
+				"pipelines": [
+					{
+						"pipelineReference": {
+							"referenceName": "P_Ingest_MelbParkingData",
+							"type": "PipelineReference"
+						},
+						"parameters": {}
+					}
+				],
+				"type": "ScheduleTrigger",
+				"typeProperties": {
+					"recurrence": {
+						"frequency": "Hour",
+						"interval": 24,
+						"startTime": "2021-10-01T07:00:00Z",
+						"timeZone": "UTC"
+					}
+				}
+			},
+			"dependsOn": [
+				"[concat(variables('workspaceId'), '/pipelines/P_Ingest_MelbParkingData')]"
+			]
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/AutoResolveIntegrationRuntime')]",
+			"type": "Microsoft.Synapse/workspaces/integrationRuntimes",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "Managed",
+				"typeProperties": {
+					"computeProperties": {
+						"location": "AutoResolve",
+						"dataFlowProperties": {
+							"computeType": "General",
+							"coreCount": 8,
+							"timeToLive": 0
+						}
+					}
+				}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/WorkspaceSystemIdentity')]",
+			"type": "Microsoft.Synapse/workspaces/credentials",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"type": "ManagedIdentity",
+				"typeProperties": {}
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/create_db_user_template')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"description": "create_db_user_template",
+				"content": {
+					"query": "USE master\n-- CREATE SQL LOGIN USER  WITH PASSWORD \nIF NOT EXISTS(SELECT name FROM sys.server_principals WHERE name = '<your sql login user name>')\nBEGIN\n    CREATE LOGIN [<your sql login user name>] WITH PASSWORD = '<your password>'\nEND\nGO\n-- CREATE DATABASE\nIF NOT EXISTS(SELECT * FROM sys.databases WHERE name = '<your database name>')\nBEGIN\n    CREATE DATABASE [<your database name>]\nEND\nGO\nUSE <your database name> \n-- Create MASTER KEY\nIF NOT EXISTS\n    (SELECT * FROM sys.symmetric_keys\n        WHERE symmetric_key_id = 101)\nBEGIN\n    CREATE MASTER KEY\nEND\nGO\n-- Create Database Scope Credential [Managed Identity]\nIF NOT EXISTS\n    (SELECT * FROM sys.database_scoped_credentials\n         WHERE name = 'SynapseIdentity')\n    CREATE DATABASE SCOPED CREDENTIAL SynapseIdentity\n    WITH IDENTITY = 'Managed Identity'\nGO\n-- CREATE DB USER NAME\nIF NOT EXISTS(SELECT name FROM sys.database_principals WHERE name = '<your db user name>')\nBEGIN\n    CREATE USER [<your db user name>] \n    FOR LOGIN [<your sql login user name>] \n    WITH DEFAULT_SCHEMA = dbo; \nEND\nGO\n-- GRANT DB ROLES TO USER\nALTER ROLE db_datareader ADD MEMBER [<your db user name>]; \nALTER ROLE db_datawriter ADD MEMBER [<your db user name>]; \nGO\n-- grant user CREDENTIAL\n-- enable users to reference that credential so they can access storage.\ngrant references \n    on database scoped credential::SynapseIdentity\n    to  [<your db user name>]; \n-- grant CONTROL on Database \nGRANT CONTROL ON DATABASE SCOPED CREDENTIAL::SynapseIdentity TO  [<your db user name>]\nGO\nGRANT CONTROL ON DATABASE::<your database name> to  [<your db user name>];\n-- Note: the CONTROL permission includes such permissions as INSERT, UPDATE, DELETE, EXECUTE, and several others.  \nGO",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"name": "master",
+						"type": "SqlOnDemand"
+					}
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/create_external_table')]",
+			"type": "Microsoft.Synapse/workspaces/sqlscripts",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"description": "create_external_table",
+				"content": {
+					"query": "-- CREATE DATABASE\nIF NOT EXISTS(SELECT * FROM sys.databases WHERE name = 'external_db')\nBEGIN\n    CREATE DATABASE external_db\nEND\nGO\nUSE external_db\n-- Create MASTER KEY \nIF NOT EXISTS\n    (SELECT * FROM sys.symmetric_keys\n        WHERE symmetric_key_id = 101)\nBEGIN\n    CREATE MASTER KEY\nEND\nGO\n-- Create Database Scope Credential [Managed Identity]\nIF NOT EXISTS\n    (SELECT * FROM sys.database_scoped_credentials\n         WHERE name = 'SynapseIdentity')\n    CREATE DATABASE SCOPED CREDENTIAL SynapseIdentity\n    WITH IDENTITY = 'Managed Identity'\nGO\nIF NOT EXISTS\n    (SELECT * FROM sys.database_scoped_credentials\n         WHERE name = 'WorkspaceIdentity')\n    CREATE DATABASE SCOPED CREDENTIAL WorkspaceIdentity\n    WITH IDENTITY = 'Managed Identity'\nGO\n-- Create Parquet Format [SynapseParquetFormat]\nIF NOT EXISTS (SELECT * FROM sys.external_file_formats WHERE name = 'SynapseParquetFormat')\n\tCREATE EXTERNAL FILE FORMAT [SynapseParquetFormat]\n\tWITH ( FORMAT_TYPE = parquet)\nGO\n-- DROP EXTERNAL DATA SOURCE INTERIM_Zone\n-- Create External Data Source\nIF NOT EXISTS (SELECT * FROM sys.external_data_sources WHERE name = 'INTERIM_Zone')\n\tCREATE EXTERNAL DATA SOURCE INTERIM_Zone\n\tWITH (  LOCATION   =  'https://dataopsstdevgdsyn.dfs.core.windows.net/datalake/data/interim/'\n    ,CREDENTIAL = WorkspaceIdentity )\nGo\n-- Create parking_bay View \nIF EXISTS(select * FROM sys.views where name = 'parking_bay_view')\n    DROP VIEW IF EXISTS parking_bay_view;\nGO\nCREATE VIEW parking_bay_view AS\nSELECT * \nFROM OPENROWSET(\n        BULK 'interim.parking_bay/*.parquet',\n        DATA_SOURCE = 'INTERIM_Zone',\n        FORMAT = 'PARQUET'\n    )\nAS [r];\nGO\n-- Create sensor View \nIF EXISTS(select * FROM sys.views where name = 'sensor_view')\n    DROP VIEW IF EXISTS sensor_view;\nGO\nCREATE VIEW sensor_view AS\nSELECT * \nFROM OPENROWSET(\n        BULK 'interim.sensor/*.parquet',\n        DATA_SOURCE = 'INTERIM_Zone',\n        FORMAT = 'PARQUET'\n    )\nAS [r];\nGO",
+					"metadata": {
+						"language": "sql"
+					},
+					"currentConnection": {
+						"name": "master",
+						"type": "SqlOnDemand"
+					}
+				},
+				"type": "SqlQuery"
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/00_setup')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"bigDataPool": {
+					"referenceName": "synspdevgdsyn",
+					"type": "BigDataPoolReference"
+				},
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"runAsWorkspaceSystemIdentity": false,
+					"conf": {}
+				},
+				"metadata": {
+					"kernelspec": {
+						"name": "synapse_pyspark",
+						"display_name": "Synapse PySpark"
+					},
+					"language_info": {
+						"name": "python"
+					}
+				},
+				"cells": [
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 1. Get variables"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"collapsed": true,
+							"tags": [
+								"parameters"
+							]
+						},
+						"source": [
+							"keyvaultlsname = 'Ls_KeyVault_01'\n",
+							"adls2lsname = 'Ls_AdlsGen2_01'"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 2. Linked Services Setup: KV and ADLS Gen2"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"collapsed": true
+						},
+						"source": [
+							"from pyspark.sql import SparkSession\n",
+							"\n",
+							"sc = SparkSession.builder.getOrCreate()\n",
+							"token_library = sc._jvm.com.microsoft.azure.synapse.tokenlibrary.TokenLibrary\n",
+							"storage_account = token_library.getSecretWithLS(keyvaultlsname, \"datalakeaccountname\")\n",
+							"\n",
+							"spark.conf.set(\"spark.storage.synapse.linkedServiceName\", adls2lsname)\n",
+							"spark.conf.set(\"fs.azure.account.oauth.provider.type\", \"com.microsoft.azure.synapse.tokenlibrary.LinkedServiceBasedTokenProvider\")\n"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 3. Create Schemas"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"collapsed": false
+						},
+						"source": [
+							"spark.sql(f\"CREATE SCHEMA IF NOT EXISTS dw LOCATION 'abfss://datalake@{storage_account}.dfs.core.windows.net/data'\")\n",
+							"spark.sql(f\"CREATE SCHEMA IF NOT EXISTS lnd LOCATION 'abfss://datalake@{storage_account}.dfs.core.windows.net/data'\")\n",
+							"spark.sql(f\"CREATE SCHEMA IF NOT EXISTS interim LOCATION 'abfss://datalake@{storage_account}.dfs.core.windows.net/data'\")\n",
+							"spark.sql(f\"CREATE SCHEMA IF NOT EXISTS malformed LOCATION 'abfss://datalake@{storage_account}.dfs.core.windows.net/data'\")"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 4. Create Fact Tables"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"collapsed": false
+						},
+						"source": [
+							"spark.sql(f\"DROP TABLE IF EXISTS dw.fact_parking\")\n",
+							"\n",
+							"spark.sql(f\"CREATE TABLE dw.fact_parking(dim_date_id STRING,dim_time_id STRING, dim_parking_bay_id STRING, dim_location_id STRING, dim_st_marker_id STRING, status STRING, load_id STRING, loaded_on TIMESTAMP) USING parquet LOCATION 'abfss://datalake@{storage_account}.dfs.core.windows.net/data/dw/fact_parking/'\")\n",
+							" \n",
+							"spark.sql(f\"REFRESH TABLE dw.fact_parking\")"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 5. Create Dimension Tables"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"collapsed": false
+						},
+						"source": [
+							"spark.sql(f\"DROP TABLE IF EXISTS dw.dim_st_marker\")\n",
+							"spark.sql(f\"CREATE TABLE dw.dim_st_marker(dim_st_marker_id STRING, st_marker_id STRING, load_id STRING, loaded_on TIMESTAMP) USING parquet LOCATION 'abfss://datalake@{storage_account}.dfs.core.windows.net/data/dw/dim_st_marker/'\")\n",
+							"spark.sql(f\"REFRESH TABLE dw.dim_st_marker\")\n",
+							" \n",
+							"\n",
+							"spark.sql(f\"DROP TABLE IF EXISTS dw.dim_location\")\n",
+							"spark.sql(f\"CREATE TABLE dw.dim_location(dim_location_id STRING,lat FLOAT, lon FLOAT, load_id STRING, loaded_on TIMESTAMP) USING parquet LOCATION 'abfss://datalake@{storage_account}.dfs.core.windows.net/data/dw/dim_location/'\")\n",
+							"spark.sql(f\"REFRESH TABLE dw.dim_location\")\n",
+							" \n",
+							"\n",
+							"spark.sql(f\"DROP TABLE IF EXISTS dw.dim_parking_bay\")\n",
+							"spark.sql(f\"CREATE TABLE dw.dim_parking_bay(dim_parking_bay_id STRING, bay_id INT,`marker_id` STRING, `meter_id` STRING, `rd_seg_dsc` STRING, `rd_seg_id` STRING, load_id STRING, loaded_on TIMESTAMP) USING parquet LOCATION 'abfss://datalake@{storage_account}.dfs.core.windows.net/data/dw/dim_parking_bay/'\")\n",
+							"spark.sql(f\"REFRESH TABLE dw.dim_parking_bay\")"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 6. Create dim date and time"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"collapsed": true
+						},
+						"source": [
+							"from pyspark.sql.functions import col\n",
+							"spark.sql(f\"DROP TABLE IF EXISTS dw.dim_date\")\n",
+							"spark.sql(f\"DROP TABLE IF EXISTS dw.dim_time\")\n",
+							"\n",
+							"# DimDate\n",
+							"dimdate = spark.read.csv(f\"abfss://datalake@{storage_account}.dfs.core.windows.net/data/seed/dim_date/dim_date.csv\", header=True)\n",
+							"dimdate.write.saveAsTable(\"dw.dim_date\")\n",
+							"\n",
+							"# DimTime\n",
+							"dimtime = spark.read.csv(f\"abfss://datalake@{storage_account}.dfs.core.windows.net/data/seed/dim_time/dim_time.csv\", header=True)\n",
+							"dimtime.write.saveAsTable(\"dw.dim_time\")"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 7. Create interim and error tables"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"collapsed": false
+						},
+						"source": [
+							"spark.sql(f\"DROP TABLE IF EXISTS interim.parking_bay\")\n",
+							"spark.sql(f\"CREATE TABLE interim.parking_bay(bay_id INT, `last_edit` TIMESTAMP, `marker_id` STRING, `meter_id` STRING, `rd_seg_dsc` STRING, `rd_seg_id` STRING, `the_geom` STRUCT<`coordinates`: ARRAY<ARRAY<ARRAY<ARRAY<DOUBLE>>>>, `type`: STRING>, load_id STRING, loaded_on TIMESTAMP) USING parquet LOCATION 'abfss://datalake@{storage_account}.dfs.core.windows.net/data/interim/interim.parking_bay/'\")\n",
+							"spark.sql(f\"REFRESH TABLE interim.parking_bay\")\n",
+							"\n",
+							"spark.sql(f\"DROP TABLE IF EXISTS interim.sensor\")\n",
+							"spark.sql(f\"CREATE TABLE  interim.sensor(bay_id INT, `st_marker_id` STRING, `lat` FLOAT, `lon` FLOAT, `location` STRUCT<`coordinates`: ARRAY<DOUBLE>, `type`: STRING>, `status` STRING, load_id STRING, loaded_on TIMESTAMP) USING parquet LOCATION 'abfss://datalake@{storage_account}.dfs.core.windows.net/data/interim/interim.sensor/'\")\n",
+							"spark.sql(f\"REFRESH TABLE  interim.sensor\")\n",
+							"   \n",
+							"\n",
+							"spark.sql(f\"DROP TABLE IF EXISTS malformed.parking_bay\")\n",
+							"spark.sql(f\"CREATE TABLE malformed.parking_bay(bay_id INT, `last_edit` TIMESTAMP,`marker_id` STRING, `meter_id` STRING, `rd_seg_dsc` STRING, `rd_seg_id` STRING, `the_geom` STRUCT<`coordinates`: ARRAY<ARRAY<ARRAY<ARRAY<DOUBLE>>>>, `type`: STRING>, load_id STRING, loaded_on TIMESTAMP) USING parquet LOCATION 'abfss://datalake@{storage_account}.dfs.core.windows.net/data/malformed/malformed.parking_bay/'\")\n",
+							"spark.sql(f\"REFRESH TABLE malformed.parking_bay\")\n",
+							"\n",
+							"spark.sql(f\"DROP TABLE IF EXISTS malformed.sensor\")\n",
+							"spark.sql(f\"CREATE TABLE malformed.sensor(bay_id INT,`st_marker_id` STRING,`lat` FLOAT,`lon` FLOAT,`location` STRUCT<`coordinates`: ARRAY<DOUBLE>, `type`: STRING>,`status` STRING, load_id STRING, loaded_on TIMESTAMP) USING parquet LOCATION 'abfss://datalake@{storage_account}.dfs.core.windows.net/data/malformed/malformed.parking_bay/'\")\n",
+							"spark.sql(f\"REFRESH TABLE malformed.sensor\")"
+						],
+						"outputs": []
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/01a_explore')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"bigDataPool": {
+					"referenceName": "synspdevgdsyn",
+					"type": "BigDataPoolReference"
+				},
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"runAsWorkspaceSystemIdentity": false,
+					"conf": {}
+				},
+				"metadata": {
+					"kernelspec": {
+						"name": "synapse_pyspark",
+						"display_name": "Synapse PySpark"
+					},
+					"language_info": {
+						"name": "python"
+					}
+				},
+				"cells": [
+					{
+						"cell_type": "code",
+						"metadata": {
+							"collapsed": false
+						},
+						"source": [
+							"import os\n",
+							"import datetime\n",
+							"\n",
+							"# For testing\n",
+							"base_path = 'abfss://datalake@<YOUR_STORAGE_ACCOUNT>.dfs.core.windows.net/data/lnd/2021_XX_XX_X1_XX_XX'\n",
+							"parkingbay_filepath = os.path.join(base_path, \"MelbParkingBayData.json\")\n",
+							"sensors_filepath = os.path.join(base_path, \"MelbParkingSensorData.json\")\n",
+							"\n",
+							"\n",
+							"parkingbay_sdf = spark.read\\\n",
+							"  .option(\"multiLine\", True)\\\n",
+							"  .json(parkingbay_filepath)\n",
+							"sensordata_sdf = spark.read\\\n",
+							"  .option(\"multiLine\", True)\\\n",
+							"  .json(sensors_filepath)\n",
+							"\n",
+							"display(parkingbay_sdf)\n",
+							"display(sensordata_sdf)\n",
+							"display(sensordata_sdf)\n"
+						],
+						"outputs": []
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/01b_explore_sqlserverless')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"bigDataPool": {
+					"referenceName": "synspdevgdsyn",
+					"type": "BigDataPoolReference"
+				},
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"runAsWorkspaceSystemIdentity": false,
+					"conf": {}
+				},
+				"metadata": {
+					"kernelspec": {
+						"name": "synapse_pyspark",
+						"display_name": "Synapse PySpark"
+					},
+					"language_info": {
+						"name": "python"
+					}
+				},
+				"cells": [
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 1. Get dynamic pipeline parameters"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"tags": [
+								"parameters"
+							]
+						},
+						"source": [
+							"keyvaultlsname = 'Ls_KeyVault_01'\n",
+							"db_user_key='synapseSQLPoolAdminUsername'\n",
+							"db_pwd_key='synapseSQLPoolAdminPassword'"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 2. Get username password from keyvault"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"from pyspark.sql import SparkSession\n",
+							"workspace_name=mssparkutils.env.getWorkspaceName()\n",
+							"print(workspace_name)"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 3. Get username password from keyvault"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# Make sure user has been created through create_db_user.sql before reading the data\n",
+							"sc = SparkSession.builder.getOrCreate()\n",
+							"token_library = sc._jvm.com.microsoft.azure.synapse.tokenlibrary.TokenLibrary\n",
+							"username = token_library.getSecretWithLS(keyvaultlsname, db_user_key)\n",
+							"password = token_library.getSecretWithLS(keyvaultlsname, db_pwd_key)\n"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 4. Get Data from external Table"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# Read Top 5 lines from the parking data\n",
+							"hostname = f\"{workspace_name}-ondemand.sql.azuresynapse.net\"\n",
+							"print(hostname)\n",
+							"port = 1433\n",
+							"database = \"external_db\" \n",
+							"jdbcUrl = f\"jdbc:sqlserver://{hostname}:{port};database={database}\"\n",
+							"dbtable = \"dbo.parking_bay_view\"\n",
+							"\n",
+							"#Parking Data\n",
+							"parking_data = spark.read \\\n",
+							"    .format(\"com.microsoft.sqlserver.jdbc.spark\") \\\n",
+							"    .option(\"url\", jdbcUrl) \\\n",
+							"    .option(\"dbtable\", dbtable) \\\n",
+							"    .option(\"user\", username) \\\n",
+							"    .option(\"password\", password) \\\n",
+							"    .load()\n",
+							"print(parking_data.count())\n",
+							"parking_data.show(5)\n"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# Read Top 5 lines from the sensor data\n",
+							"dbtable = \"sensor_view\"\n",
+							"sensor_data = spark.read \\\n",
+							"    .format(\"com.microsoft.sqlserver.jdbc.spark\") \\\n",
+							"    .option(\"url\", jdbcUrl) \\\n",
+							"    .option(\"dbtable\", dbtable) \\\n",
+							"    .option(\"user\", username) \\\n",
+							"    .option(\"password\", password) \\\n",
+							"    .load()\n",
+							"print(sensor_data.count())\n",
+							"sensor_data.show(5)"
+						],
+						"outputs": []
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/02_standardize')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"bigDataPool": {
+					"referenceName": "synspdevgdsyn",
+					"type": "BigDataPoolReference"
+				},
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"runAsWorkspaceSystemIdentity": false,
+					"conf": {}
+				},
+				"metadata": {
+					"kernelspec": {
+						"name": "synapse_pyspark",
+						"display_name": "Synapse PySpark"
+					},
+					"language_info": {
+						"name": "python"
+					}
+				},
+				"cells": [
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 1. Get dynamic pipeline parameters"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"collapsed": true,
+							"tags": [
+								"parameters"
+							]
+						},
+						"source": [
+							"# Get folder where the REST downloads were placed\n",
+							"infilefolder = '2021_10_05_07_58_15/'\n",
+							"\n",
+							"# Get pipeline name\n",
+							"pipelinename = 'P_Ingest_MelbParkingData'\n",
+							"\n",
+							"# Get pipeline run id\n",
+							"loadid = ''\n",
+							"\n",
+							"# Get keyvault linked service name\n",
+							"keyvaultlsname = 'Ls_KeyVault_01'"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 2. Load file path variables"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"collapsed": true,
+							"tags": []
+						},
+						"source": [
+							"import os\n",
+							"import datetime\n",
+							"\n",
+							"token_library = sc._jvm.com.microsoft.azure.synapse.tokenlibrary.TokenLibrary\n",
+							"\n",
+							"# Primary storage info \n",
+							"account_name = token_library.getSecretWithLS( keyvaultlsname, \"datalakeaccountname\")\n",
+							"container_name = 'datalake' # fill in your container name \n",
+							"relative_path = 'data/lnd/' # fill in your relative folder path \n",
+							"\n",
+							"adls_path = 'abfss://%s@%s.dfs.core.windows.net/%s' % (container_name, account_name, relative_path) \n",
+							"print('Primary storage account path: ' + adls_path) \n",
+							"load_id = loadid\n",
+							"loaded_on = datetime.datetime.now()\n",
+							"base_path = os.path.join(adls_path, infilefolder)\n",
+							"\n",
+							"parkingbay_filepath = os.path.join(base_path, \"MelbParkingBayData.json\")\n",
+							"print(parkingbay_filepath)\n",
+							"sensors_filepath = os.path.join(base_path, \"MelbParkingSensorData.json\")\n",
+							"print(sensors_filepath)"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 3. Transform: Standardize"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"collapsed": true
+						},
+						"source": [
+							"import ddo_transform.standardize as s\n",
+							"\n",
+							"# Retrieve schema\n",
+							"parkingbay_schema = s.get_schema(\"in_parkingbay_schema\")\n",
+							"sensordata_schema = s.get_schema(\"in_sensordata_schema\")\n",
+							"\n",
+							"# Read data\n",
+							"parkingbay_sdf = spark.read\\\n",
+							"  .schema(parkingbay_schema)\\\n",
+							"  .option(\"badRecordsPath\", os.path.join(base_path, \"__corrupt\", \"MelbParkingBayData\"))\\\n",
+							"  .json(parkingbay_filepath)\n",
+							"sensordata_sdf = spark.read\\\n",
+							"  .schema(sensordata_schema)\\\n",
+							"  .option(\"badRecordsPath\", os.path.join(base_path, \"__corrupt\", \"MelbParkingSensorData\"))\\\n",
+							"  .json(sensors_filepath)\n",
+							"\n",
+							"# Standardize\n",
+							"t_parkingbay_sdf, t_parkingbay_malformed_sdf = s.standardize_parking_bay(parkingbay_sdf, load_id, loaded_on)\n",
+							"t_sensordata_sdf, t_sensordata_malformed_sdf = s.standardize_sensordata(sensordata_sdf, load_id, loaded_on)\n",
+							"\n",
+							"# Insert new rows\n",
+							"t_parkingbay_sdf.write.mode(\"append\").insertInto(\"interim.parking_bay\")\n",
+							"t_sensordata_sdf.write.mode(\"append\").insertInto(\"interim.sensor\")\n",
+							"\n",
+							"# Insert bad rows\n",
+							"t_parkingbay_malformed_sdf.write.mode(\"append\").insertInto(\"malformed.parking_bay\")\n",
+							"t_sensordata_malformed_sdf.write.mode(\"append\").insertInto(\"malformed.sensor\")\n",
+							"\n",
+							"# Recording record counts for logging purpose\n",
+							"parkingbay_count = t_parkingbay_sdf.count()\n",
+							"sensordata_count = t_sensordata_sdf.count()\n",
+							"parkingbay_malformed_count = t_parkingbay_malformed_sdf.count()\n",
+							"sensordata_malformed_count = t_sensordata_malformed_sdf.count()"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 4. Observability: Logging to Azure Application Insights using OpenCensus Library"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"collapsed": true
+						},
+						"source": [
+							"import logging\n",
+							"import os\n",
+							"from opencensus.ext.azure.log_exporter import AzureLogHandler\n",
+							"from opencensus.ext.azure.log_exporter import AzureEventHandler\n",
+							"from datetime import datetime\n",
+							"\n",
+							"# Getting Application Insights instrumentation key\n",
+							"appi_key = token_library.getSecretWithLS(keyvaultlsname,\"applicationInsightsKey\")\n",
+							"\n",
+							"# Enable App Insights\n",
+							"aiLogger = logging.getLogger(__name__)\n",
+							"aiLogger.addHandler(AzureEventHandler(connection_string = 'InstrumentationKey=' + appi_key))\n",
+							"\n",
+							"aiLogger.setLevel(logging.INFO)\n",
+							"\n",
+							"aiLogger.info(\"Standardize (ai): Started at \" + datetime.now().strftime(\"%Y-%m-%d %H:%M:%S\"))\n",
+							"properties = {\"custom_dimensions\": {\"pipeline\": pipelinename, \"run_id\": loadid, \"parkingbay_count\": parkingbay_count, \"sensordata_count\": sensordata_count, \"parkingbay_malformed_count\": parkingbay_malformed_count, \"sensordata_malformed_count\": sensordata_malformed_count}}\n",
+							"aiLogger.info(\"Standardize (ai): Completed at \" + datetime.now().strftime(\"%Y-%m-%d %H:%M:%S\"), extra=properties)\n",
+							"\n",
+							"# To query this log, go to the Azure Monitor and run the following kusto query (Scope: Application Insights instance):\n",
+							"#customEvents\n",
+							"#| order by timestamp desc\n",
+							"#| project timestamp, appName, name,\n",
+							"#    pipelineName             = customDimensions.pipeline,\n",
+							"#    pipelineRunId            = customDimensions.run_id,\n",
+							"#    parkingbayCount          = customDimensions.parkingbay_count,\n",
+							"#    sensordataCount          = customDimensions.sensordata_count,\n",
+							"#    parkingbayMalformedCount = customDimensions.parkingbay_malformed_count,\n",
+							"#    sensordataMalformedCount = customDimensions.sensordata_malformed_count,\n",
+							"#    dimParkingbayCount       = customDimensions.new_parkingbay_count\n"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 5. Observability: Logging to Log Analytics workspace using log4j"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"collapsed": true
+						},
+						"source": [
+							"import logging\n",
+							"import sys\n",
+							"\n",
+							"# Enable Log Analytics using log4j\n",
+							"log4jLogger = sc._jvm.org.apache.log4j\n",
+							"logger = log4jLogger.LogManager.getLogger(\"ParkingSensorLogs\")\n",
+							"\n",
+							"def log(msg = ''):\n",
+							"    env = mssparkutils.env\n",
+							"    formatted_msg = f'Standardize (log4j): {msg}~{pipelinename}~{env.getJobId()}~{env.getPoolName()}~{env.getWorkspaceName()}~{env.getUserId()}'\n",
+							"    logger.info(formatted_msg)\n",
+							"\n",
+							"log(\"Started at \" + datetime.now().strftime(\"%Y-%m-%d %H:%M:%S\"))\n",
+							"\n",
+							"log(f'parkingbay_count: {parkingbay_count}')\n",
+							"log(f'sensordata_count: {sensordata_count}')\n",
+							"log(f'parkingbay_malformed_count: {parkingbay_malformed_count}')\n",
+							"log(f'sensordata_malformed_count: {sensordata_malformed_count}')\n",
+							"\n",
+							"log(\"Completed at \" + datetime.now().strftime(\"%Y-%m-%d %H:%M:%S\"))\n",
+							"\n",
+							"# To query this log, go to the log analytics workspace and run the following kusto query (Scope: Log Analytics Workspace):\n",
+							"#SparkLoggingEvent_CL\n",
+							"#| where logger_name_s == \"ParkingSensorLogs\"\n",
+							"#| order by TimeGenerated desc\n",
+							"#| project TimeGenerated, workspaceName_s, Level,\n",
+							"#    message         = split(Message, '~', 0),\n",
+							"#    pipelineName    = split(Message, '~', 1),\n",
+							"#    jobId           = split(Message, '~', 2),\n",
+							"#    SparkPoolName   = split(Message, '~', 3),\n",
+							"#    UserId          = split(Message, '~', 5)"
+						],
+						"outputs": []
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/03_transform')]",
+			"type": "Microsoft.Synapse/workspaces/notebooks",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"nbformat": 4,
+				"nbformat_minor": 2,
+				"bigDataPool": {
+					"referenceName": "synspdevgdsyn",
+					"type": "BigDataPoolReference"
+				},
+				"sessionProperties": {
+					"driverMemory": "28g",
+					"driverCores": 4,
+					"executorMemory": "28g",
+					"executorCores": 4,
+					"numExecutors": 2,
+					"runAsWorkspaceSystemIdentity": false,
+					"conf": {}
+				},
+				"metadata": {
+					"kernelspec": {
+						"name": "synapse_pyspark",
+						"display_name": "Synapse PySpark"
+					},
+					"language_info": {
+						"name": "python"
+					}
+				},
+				"cells": [
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 1. Get dynamic pipeline parameters"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"collapsed": true,
+							"tags": [
+								"parameters"
+							]
+						},
+						"source": [
+							"# Get pipeline name\n",
+							"pipelinename = 'pipeline_name'\n",
+							"\n",
+							"# Get pipeline run id\n",
+							"loadid = ''\n",
+							"\n",
+							"# Get keyvault linked service name\n",
+							"keyvaultlsname = 'Ls_KeyVault_01'"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 2. Transform and load Dimension tables\n"
+						]
+					},
+					{
+						"cell_type": "code",
+						"source": [
+							"import datetime\n",
+							"import os\n",
+							"from pyspark.sql.functions import col, lit\n",
+							"import ddo_transform.transform as t\n",
+							"import ddo_transform.util as util\n",
+							"\n",
+							"load_id = loadid\n",
+							"loaded_on = datetime.datetime.now()\n",
+							"\n",
+							"token_library = sc._jvm.com.microsoft.azure.synapse.tokenlibrary.TokenLibrary\n",
+							"\n",
+							"# Primary storage info \n",
+							"account_name = token_library.getSecretWithLS(keyvaultlsname,\"datalakeaccountname\")\n",
+							"container_name = 'datalake' # fill in your container name \n",
+							"relative_path = 'data/dw/' # fill in your relative folder path \n",
+							"\n",
+							"base_path = 'abfss://%s@%s.dfs.core.windows.net/%s' % (container_name, account_name, relative_path) \n",
+							"\n",
+							"# Read interim cleansed data\n",
+							"parkingbay_sdf = spark.read.table(\"interim.parking_bay\").filter(col('load_id') == lit(load_id))\n",
+							"sensordata_sdf = spark.read.table(\"interim.sensor\").filter(col('load_id') == lit(load_id))\n",
+							"\n",
+							"# Read existing Dimensions\n",
+							"dim_parkingbay_sdf = spark.read.table(\"dw.dim_parking_bay\")\n",
+							"dim_location_sdf = spark.read.table(\"dw.dim_location\")\n",
+							"dim_st_marker = spark.read.table(\"dw.dim_st_marker\")\n",
+							"\n",
+							"# Transform\n",
+							"new_dim_parkingbay_sdf = t.process_dim_parking_bay(parkingbay_sdf, dim_parkingbay_sdf, load_id, loaded_on).cache()\n",
+							"new_dim_location_sdf = t.process_dim_location(sensordata_sdf, dim_location_sdf, load_id, loaded_on).cache()\n",
+							"new_dim_st_marker_sdf = t.process_dim_st_marker(sensordata_sdf, dim_st_marker, load_id, loaded_on).cache()\n",
+							"\n",
+							"# Load\n",
+							"util.save_overwrite_unmanaged_table(spark, new_dim_parkingbay_sdf, table_name=\"dw.dim_parking_bay\", path=os.path.join(base_path, \"dim_parking_bay\"))\n",
+							"util.save_overwrite_unmanaged_table(spark, new_dim_location_sdf, table_name=\"dw.dim_location\", path=os.path.join(base_path, \"dim_location\"))\n",
+							"util.save_overwrite_unmanaged_table(spark, new_dim_st_marker_sdf, table_name=\"dw.dim_st_marker\", path=os.path.join(base_path, \"dim_st_marker\"))"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 3. Transform and load Fact tables"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"collapsed": true
+						},
+						"source": [
+							"# Read existing Dimensions\n",
+							"dim_parkingbay_sdf = spark.read.table(\"dw.dim_parking_bay\")\n",
+							"dim_location_sdf = spark.read.table(\"dw.dim_location\")\n",
+							"dim_st_marker = spark.read.table(\"dw.dim_st_marker\")\n",
+							"\n",
+							"# Process\n",
+							"new_fact_parking = t.process_fact_parking(sensordata_sdf, dim_parkingbay_sdf, dim_location_sdf, dim_st_marker, load_id, loaded_on)\n",
+							"\n",
+							"# Insert new rows\n",
+							"new_fact_parking.write.mode(\"append\").insertInto(\"dw.fact_parking\")\n",
+							"\n",
+							"# Recording record counts for logging purpose\n",
+							"new_dim_parkingbay_count = spark.read.table(\"dw.dim_parking_bay\").count()\n",
+							"new_dim_location_count = spark.read.table(\"dw.dim_location\").count()\n",
+							"new_dim_st_marker_count = spark.read.table(\"dw.dim_st_marker\").count()\n",
+							"new_fact_parking_count = new_fact_parking.count()"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 4. Observability: Logging to Azure Application Insights using OpenCensus Library"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"collapsed": true
+						},
+						"source": [
+							"import logging\n",
+							"import os\n",
+							"from opencensus.ext.azure.log_exporter import AzureLogHandler\n",
+							"from opencensus.ext.azure.log_exporter import AzureEventHandler\n",
+							"from datetime import datetime\n",
+							"\n",
+							"# Getting Application Insights instrumentation key\n",
+							"appi_key = token_library.getSecretWithLS(keyvaultlsname,\"applicationInsightsKey\")\n",
+							"\n",
+							"# Enable App Insights\n",
+							"aiLogger = logging.getLogger(__name__)\n",
+							"aiLogger.addHandler(AzureEventHandler(connection_string = 'InstrumentationKey=' + appi_key))\n",
+							"\n",
+							"aiLogger.setLevel(logging.INFO)\n",
+							"\n",
+							"aiLogger.info(\"Transform (ai): Started at \" + datetime.now().strftime(\"%Y-%m-%d %H:%M:%S\"))\n",
+							"properties = {\"custom_dimensions\": {\"pipeline\": pipelinename, \"run_id\": loadid, \"new_parkingbay_count\": new_dim_parkingbay_count}}\n",
+							"aiLogger.info(\"Transform (ai): Completed at \" + datetime.now().strftime(\"%Y-%m-%d %H:%M:%S\"), extra=properties)\n",
+							"\n",
+							"# To query this log, go to the Azure Monitor and run the following kusto query (Scope: Application Insights instance):\n",
+							"#customEvents\n",
+							"#| order by timestamp desc\n",
+							"#| project timestamp, appName, name,\n",
+							"#    pipelineName             = customDimensions.pipeline,\n",
+							"#    pipelineRunId            = customDimensions.run_id,\n",
+							"#    parkingbayCount          = customDimensions.parkingbay_count,\n",
+							"#    sensordataCount          = customDimensions.sensordata_count,\n",
+							"#    parkingbayMalformedCount = customDimensions.parkingbay_malformed_count,\n",
+							"#    sensordataMalformedCount = customDimensions.sensordata_malformed_count,\n",
+							"#    dimParkingbayCount       = customDimensions.new_parkingbay_count"
+						],
+						"outputs": []
+					},
+					{
+						"cell_type": "markdown",
+						"metadata": {
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							}
+						},
+						"source": [
+							"# 5. Observability: Logging to Log Analytics workspace using log4j"
+						]
+					},
+					{
+						"cell_type": "code",
+						"metadata": {
+							"jupyter": {
+								"outputs_hidden": false,
+								"source_hidden": false
+							},
+							"nteract": {
+								"transient": {
+									"deleting": false
+								}
+							},
+							"collapsed": true
+						},
+						"source": [
+							"import logging\n",
+							"import sys\n",
+							"\n",
+							"# Enable Log Analytics using log4j\n",
+							"log4jLogger = sc._jvm.org.apache.log4j\n",
+							"logger = log4jLogger.LogManager.getLogger(\"ParkingSensorLogs\")\n",
+							"\n",
+							"def log(msg = ''):\n",
+							"    env = mssparkutils.env\n",
+							"    formatted_msg = f'Transform (log4j): {msg}~{pipelinename}~{env.getJobId()}~{env.getPoolName()}~{env.getWorkspaceName()}~{env.getUserId()}'\n",
+							"    logger.info(formatted_msg)\n",
+							"\n",
+							"log(\"Started at \" + datetime.now().strftime(\"%Y-%m-%d %H:%M:%S\"))\n",
+							"\n",
+							"log(f'new_dim_parkingbay_count: {new_dim_parkingbay_count}')\n",
+							"log(f'new_dim_location_count: {new_dim_location_count}')\n",
+							"log(f'new_dim_st_marker_count: {new_dim_st_marker_count}')\n",
+							"log(f'new_fact_parking_count: {new_fact_parking_count}')\n",
+							"\n",
+							"log(\"Completed at \" + datetime.now().strftime(\"%Y-%m-%d %H:%M:%S\"))\n",
+							"\n",
+							"# To query this log, go to the log analytics workspace and run the following kusto query (Scope: Log Analytics Workspace):\n",
+							"#SparkLoggingEvent_CL\n",
+							"#| where logger_name_s == \"ParkingSensorLogs\"\n",
+							"#| order by TimeGenerated desc\n",
+							"#| project TimeGenerated, workspaceName_s, Level,\n",
+							"#    message         = split(Message, '~', 0),\n",
+							"#    pipelineName    = split(Message, '~', 1),\n",
+							"#    jobId           = split(Message, '~', 2),\n",
+							"#    SparkPoolName   = split(Message, '~', 3),\n",
+							"#    UserId          = split(Message, '~', 5)"
+						],
+						"outputs": []
+					}
+				]
+			},
+			"dependsOn": []
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/synspdevgdsyn')]",
+			"type": "Microsoft.Synapse/workspaces/bigDataPools",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"autoPause": {
+					"enabled": true,
+					"delayInMinutes": 15
+				},
+				"autoScale": {
+					"enabled": true,
+					"maxNodeCount": 10,
+					"minNodeCount": 3
+				},
+				"nodeCount": 10,
+				"nodeSize": "Small",
+				"nodeSizeFamily": "MemoryOptimized",
+				"sparkVersion": "2.4",
+				"libraryRequirements": {
+					"content": "opencensus==0.7.13\r\n",
+					"filename": "requirements.txt",
+					"time": "2022-11-06T18:09:46.2341448Z"
+				},
+				"isComputeIsolationEnabled": false,
+				"sparkConfigProperties": {
+					"configurationType": "File",
+					"filename": "spark_loganalytics_conf.txt",
+					"content": "spark.synapse.logAnalytics.enabled true\r\nspark.synapse.logAnalytics.workspaceId e58176c0-6e53-4559-8494-84c63dae7e79\r\nspark.synapse.logAnalytics.secret q5P/OOU6kV2jmvgU4PSxJAMh/dA/OYMSOo5aY89zyDPvwhX3PzBak5U8Ep2UF5EyY1ui5JQ9QQpTLxfwO2+K0A==",
+					"time": "2022-11-06T18:09:46.2341448Z"
+				},
+				"sessionLevelPackagesEnabled": true,
+				"customLibraries": [
+					{
+						"name": "ddo_transform-localdev-py2.py3-none-any.whl",
+						"path": "sywsdevgdsyn/libraries/ddo_transform-localdev-py2.py3-none-any.whl",
+						"containerName": "prep",
+						"uploadedTimestamp": "0001-01-01T00:00:00+00:00",
+						"type": "whl"
+					}
+				],
+				"annotations": []
+			},
+			"dependsOn": [],
+			"location": "westeurope"
+		},
+		{
+			"name": "[concat(parameters('workspaceName'), '/syndpdevgdsyn')]",
+			"type": "Microsoft.Synapse/workspaces/sqlPools",
+			"apiVersion": "2019-06-01-preview",
+			"properties": {
+				"collation": "SQL_Latin1_General_CP1_CI_AS",
+				"maxSizeBytes": 263882790666240,
+				"annotations": []
+			},
+			"dependsOn": [],
+			"location": "westeurope"
+		}
+	]
+}
