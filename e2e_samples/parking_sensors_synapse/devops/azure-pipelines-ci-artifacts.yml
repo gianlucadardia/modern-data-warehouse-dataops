@@ -59,6 +59,7 @@ stages:
       displayName: 'Publish requirements.txt to Artifacts'
 
   - job: 'publish_static_artifacts'
+    dependsOn: 'publish_python_packages'
     displayName: 'Publish Static Artifacts'
     pool:
       vmImage: 'Ubuntu-latest'
@@ -70,6 +71,7 @@ stages:
       displayName: 'Publish Synapse Artifacts'
 
   - job: 'publish_sql_packages'
+    dependsOn: 'publish_static_artifacts'
     displayName: 'Publish SQL Packages'
     pool:
       vmImage: 'windows-latest'
