@@ -29,6 +29,16 @@ jobs:
           displayName: 'Set packageWheelName variable'
 
         - task: AzureCLI@2
+          displayName: Listing Workspace packages
+          inputs:
+            azureSubscription: ${{ parameters.serviceConnection }}
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: |
+              az synapse workspace-package list \
+              --workspace-name $(synapseWorkspaceName)
+
+        - task: AzureCLI@2
           displayName: Upload package to Synapse workspace
           inputs:
             azureSubscription: ${{ parameters.serviceConnection }}
