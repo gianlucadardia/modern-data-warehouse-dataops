@@ -39,6 +39,18 @@ jobs:
               --workspace-name $(synapseWorkspaceName)
 
         - task: AzureCLI@2
+          displayName: Delete old package from Synapse workspace
+          inputs:
+            azureSubscription: ${{ parameters.serviceConnection }}
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: |
+              az synapse workspace-package delete \
+              --workspace-name $(synapseWorkspaceName) \
+              --package $(setPackageWheelName.packageWheelName) \
+              -- debug
+
+        - task: AzureCLI@2
           displayName: Upload package to Synapse workspace
           inputs:
             azureSubscription: ${{ parameters.serviceConnection }}
@@ -47,7 +59,18 @@ jobs:
             inlineScript: |
               az synapse workspace-package upload \
               --workspace-name $(synapseWorkspaceName) \
-              --package $(Pipeline.Workspace)/ciartifacts/dist/$(setPackageWheelName.packageWheelName)
+              --package $(Pipeline.Workspace)/ciartifacts/dist/$(setPackageWheelName.packageWheelName) \
+              -- debug- task: AzureCLI@2
+          displayName: Upload package to Synapse workspace
+          inputs:
+            azureSubscription: ${{ parameters.serviceConnection }}
+            scriptType: bash
+            scriptLocation: inlineScript
+            inlineScript: |
+              az synapse workspace-package upload \
+              --workspace-name $(synapseWorkspaceName) \
+              --package $(Pipeline.Workspace)/ciartifacts/dist/$(setPackageWheelName.packageWheelName) \
+              -- debug
         
         - task: AzureCLI@2
           displayName: Remove old version and add package to spark pool
