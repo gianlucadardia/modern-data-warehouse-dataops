@@ -48,7 +48,7 @@ jobs:
               az synapse workspace-package delete \
               --workspace-name $(synapseWorkspaceName) \
               --package $(setPackageWheelName.packageWheelName) \
-              -- debug
+              --debug
 
         - task: AzureCLI@2
           displayName: Upload package to Synapse workspace
@@ -60,7 +60,7 @@ jobs:
               az synapse workspace-package upload \
               --workspace-name $(synapseWorkspaceName) \
               --package $(Pipeline.Workspace)/ciartifacts/dist/$(setPackageWheelName.packageWheelName) \
-              -- debug 
+              --debug 
         
         - task: AzureCLI@2
           displayName: Remove old version and add package to spark pool
