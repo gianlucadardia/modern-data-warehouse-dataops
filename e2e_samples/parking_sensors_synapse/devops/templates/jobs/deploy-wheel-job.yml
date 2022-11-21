@@ -47,8 +47,7 @@ jobs:
             inlineScript: |
               az synapse workspace-package upload \
               --workspace-name $(synapseWorkspaceName) \
-              --package $(Pipeline.Workspace)/ciartifacts/dist/$(setPackageWheelName.packageWheelName) \
-              --yes 
+              --package $(Pipeline.Workspace)/ciartifacts/dist/$(setPackageWheelName.packageWheelName)
         
         - task: AzureCLI@2
           displayName: Remove old version and add package to spark pool
