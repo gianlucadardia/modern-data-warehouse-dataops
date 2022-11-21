@@ -48,7 +48,7 @@ jobs:
               az synapse workspace-package delete \
               --workspace-name $(synapseWorkspaceName) \
               --package $(setPackageWheelName.packageWheelName) \
-              --debug
+              --yes
 
         - task: AzureCLI@2
           displayName: Upload package to Synapse workspace
