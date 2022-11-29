@@ -16,9 +16,14 @@ jobs:
             # az upgrade and apt-get command both failed for updating to 2.29.0 
             # version on ubuntu at this point
             #curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-            bash: pip install -Iv azure-cli==2.34.1 --extra-index-url https://azurecliprod.blob.core.windows.net/edge
+            pip install -Iv azure-cli==2.34.1 --extra-index-url https://azurecliprod.blob.core.windows.net/edge
           name: az_upgrade
-          displayName: 'upgrade az cli to latest version'
+          displayName: 'upgrade az cli to 2.3.41'
+
+        - script: | 
+            az --version 
+            name: az_version
+            displayName: 'Show az cli version'
 
         - script: |
             packageWheelName=$(ls ${WHEEL_FILE_PATH} | grep '^ddo_transform.*.whl$' | head -n 1)
