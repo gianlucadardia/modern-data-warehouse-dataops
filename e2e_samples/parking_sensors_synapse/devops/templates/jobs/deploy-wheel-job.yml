@@ -22,8 +22,8 @@ jobs:
 
         - script: | 
             az --version 
-            name: az_version
-            displayName: 'Show az cli version'
+          name: az_version
+          displayName: 'Show az cli version'
 
         - script: |
             packageWheelName=$(ls ${WHEEL_FILE_PATH} | grep '^ddo_transform.*.whl$' | head -n 1)
