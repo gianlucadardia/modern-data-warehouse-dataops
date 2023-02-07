@@ -6,7 +6,7 @@
 			"value": "sywsdevgdsyn"
 		},
 		"sywsdevgdsyn-WorkspaceDefaultSqlServer_connectionString": {
-			"value": ""
+			"value": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:sywsdevgdsyn.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
 		},
 		"P_Ingest_MelbParkingData_properties_5_sqlPool_referenceName": {
 			"value": "syndpdevgdsyn"
@@ -34,7 +34,7 @@
 			"value": "Anonymous"
 		},
 		"sywsdevgdsyn-WorkspaceDefaultSqlServer_properties_typeProperties_connectionString": {
-			"value": ""
+			"value": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=tcp:sywsdevgdsyn.sql.azuresynapse.net,1433;Initial Catalog=@{linkedService().DBName}"
 		},
 		"sywsdevgdsyn-WorkspaceDefaultStorage_properties_typeProperties_url": {
 			"value": "https://dataopsst2devgdsyn.dfs.core.windows.net"
