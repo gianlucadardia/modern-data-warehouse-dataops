@@ -1,6 +1,7 @@
 {
 	"name": "P_Ingest_MelbParkingData",
 	"properties": {
+		"description": "Added description",
 		"activities": [
 			{
 				"name": "Set infilefolder",
