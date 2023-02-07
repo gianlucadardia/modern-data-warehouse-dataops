@@ -8,6 +8,7 @@ from pyspark.sql.types import (
     ArrayType, StructType, StructField, StringType, DoubleType)  # noqa: E501
 
 
+
 def get_schema(schema_name):
     if schema_name == 'in_parkingbay_schema':
         schema = StructType([
