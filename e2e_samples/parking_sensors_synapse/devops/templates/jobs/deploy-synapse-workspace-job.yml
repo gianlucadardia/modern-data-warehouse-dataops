@@ -30,8 +30,8 @@ jobs:
           inputs:
             #TemplateFile: '$(Pipeline.Workspace)/workspace_publish/$(devSynapseWorkspaceName)/TemplateForWorkspace.json'
             #ParametersFile: '$(Pipeline.Workspace)/workspace_publish/$(devSynapseWorkspaceName)/TemplateParametersForWorkspace.json'
-            TemplateFile: '$(Pipeline.Workspace)/workspace_publish/TemplateForWorkspace.json'
-            ParametersFile: '$(Pipeline.Workspace)/workspace_publish/TemplateParametersForWorkspace.json'
+            TemplateFile: '$(Pipeline.Workspace)/workspace_publish/sywsdevgdsyn/TemplateForWorkspace.json'
+            ParametersFile: '$(Pipeline.Workspace)/workspace_publish/sywsdevgdsyn/TemplateParametersForWorkspace.json'
             azureSubscription: ${{ parameters.serviceConnection }}
             ResourceGroupName: '$(rgName)'
             TargetWorkspaceName: '$(synapseWorkspaceName)'
