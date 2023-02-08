@@ -6,7 +6,8 @@ parameters:
 
 jobs:
 - deployment: deploy_synapse_workspace
-  dependsOn: [ deploy_dedicated_sql_pool, deploy_wheel_to_synapse ]
+  #dependsOn: [ deploy_dedicated_sql_pool, deploy_wheel_to_synapse ]
+  dependsOn: [ deploy_dedicated_sql_pool]
   displayName: 'Deploy Synapse Workspace'
   pool:
     vmImage: 'windows-2019'
