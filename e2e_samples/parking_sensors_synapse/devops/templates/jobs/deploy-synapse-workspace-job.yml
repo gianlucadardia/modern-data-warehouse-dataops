@@ -16,7 +16,8 @@ jobs:
     runOnce:
       deploy:
         steps:
-        - checkout: mdwdataops_workspace_publish
+        #- checkout: mdwdataops_workspace_publish
+        - checkout: workspace_publish
           path: 'workspace_publish' 
 
         - task: Synapse workspace deployment@2
