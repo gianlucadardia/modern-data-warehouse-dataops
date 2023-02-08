@@ -24,12 +24,14 @@ jobs:
             echo "ParametersFile is $(Pipeline.Workspace)/workspace_publish/$(devSynapseWorkspaceName)/TemplateParametersForWorkspace.json"
             echo "azureSubscription is ${{ parameters.serviceConnection }}"
             echo "ResourceGroupName is $(rgName)""
-            echo "TargetWorkspaceName is $(synapseWorkspaceName)""
+            echo "TargetWorkspaceName is $(synapseWorkspaceName)"
 
         - task: Synapse workspace deployment@2
           inputs:
-            TemplateFile: '$(Pipeline.Workspace)/workspace_publish/$(devSynapseWorkspaceName)/TemplateForWorkspace.json'
-            ParametersFile: '$(Pipeline.Workspace)/workspace_publish/$(devSynapseWorkspaceName)/TemplateParametersForWorkspace.json'
+            #TemplateFile: '$(Pipeline.Workspace)/workspace_publish/$(devSynapseWorkspaceName)/TemplateForWorkspace.json'
+            #ParametersFile: '$(Pipeline.Workspace)/workspace_publish/$(devSynapseWorkspaceName)/TemplateParametersForWorkspace.json'
+            TemplateFile: '$(Pipeline.Workspace)/workspace_publish/TemplateForWorkspace.json'
+            ParametersFile: '$(Pipeline.Workspace)/workspace_publish/TemplateParametersForWorkspace.json'
             azureSubscription: ${{ parameters.serviceConnection }}
             ResourceGroupName: '$(rgName)'
             TargetWorkspaceName: '$(synapseWorkspaceName)'
