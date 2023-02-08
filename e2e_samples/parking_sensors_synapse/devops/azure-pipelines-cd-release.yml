@@ -42,10 +42,10 @@ stages:
     parameters:
       environmentName: 'STG'
       serviceConnection: 'dataops-serviceconnection-stg'
-  - template: templates/jobs/deploy-wheel-job.yml
-    parameters:
-      environmentName: 'STG'
-      serviceConnection: 'dataops-serviceconnection-stg'
+  #- template: templates/jobs/deploy-wheel-job.yml
+  #  parameters:
+  #    environmentName: 'STG'
+  #    serviceConnection: 'dataops-serviceconnection-stg'
   - template: templates/jobs/deploy-synapse-workspace-job.yml
     parameters:
       environmentName: 'STG'
