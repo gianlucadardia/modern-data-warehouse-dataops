@@ -19,7 +19,7 @@ jobs:
         - checkout: mdwdataops_workspace_publish
           path: 'workspace_publish' 
 
-        - task: Synapse workspace deployment@1
+        - task: Synapse workspace deployment@2
           inputs:
             TemplateFile: '$(Pipeline.Workspace)/workspace_publish/$(devSynapseWorkspaceName)/TemplateForWorkspace.json'
             ParametersFile: '$(Pipeline.Workspace)/workspace_publish/$(devSynapseWorkspaceName)/TemplateParametersForWorkspace.json'
